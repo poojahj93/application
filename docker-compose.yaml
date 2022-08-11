@@ -1,0 +1,74 @@
+---
+version: '3.7'
+services:
+
+  mongo:
+    image: mongo:latest
+    container_name: mongodb
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodata:/data/db
+    deploy:
+      resources:
+        limits:
+          memory: 500m
+        reservations:
+          memory: 200m
+
+  mongo-express:
+    image: mongo-express
+    environment:
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: password
+      ME_CONFIG_MONGODB_AUTH_DATABASE: auth
+      ME_CONFIG_MONGODB_URL: mongodb://admin:password@mongodb:27017/?ssl=false
+    restart: always
+    ports:
+      - 8081:8081
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8082:8082
+    depends_on:
+      - zookeeper0
+      - kafka0
+    environment:
+      SERVER_PORT: 8082
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka0:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper0:2181
+      KAFKA_CLUSTERS_0_JMXPORT: 9997
+
+  zookeeper0:
+    image: confluentinc/cp-zookeeper:5.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+
+  kafka0:
+    image: confluentinc/cp-kafka:5.4.0
+    depends_on:
+      - zookeeper0
+    ports:
+      - 9092:9092
+      - 9997:9997
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper0:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka0:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      JMX_PORT: 9997
+      KAFKA_JMX_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=kafka0 -Dcom.sun.management.jmxremote.rmi.port=9997
+
+volumes:
+  mongodata:
