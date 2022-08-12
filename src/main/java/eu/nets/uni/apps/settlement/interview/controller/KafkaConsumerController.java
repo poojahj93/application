@@ -2,12 +2,15 @@ package eu.nets.uni.apps.settlement.interview.controller;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -33,7 +36,10 @@ public class KafkaConsumerController {
 	@Autowired
 	CurrencyExchangeService currencyExchangeService;
 
-	@GetMapping("/exchange-rates/{base-currency}")
+	@Autowired
+	MongoTemplate mongoTemplate;
+
+	@GetMapping("/exchange-rate/{base-currency}")
 	public ResponseEntity<ExchangeRateEntity> findLatestExchangeRatesByBaseCurrency(
 			@PathVariable("base-currency") String baseCurrency) throws ExRatesNotPresentForBaseCurrencyException {
 		logger.debug("findLatestExchangeRatesByBaseCurrency request : {}", baseCurrency);
@@ -44,7 +50,7 @@ public class KafkaConsumerController {
 		return new ResponseEntity<ExchangeRateEntity>(latestExchangeRatesByBaseCurrency, HttpStatus.OK);
 	}
 
-	@GetMapping(value = "/exchange-rates/{base-currency}", params = { "!sourceid", "datetime" })
+	@GetMapping(value = "/exchange-rates/{base-currency}")
 	public ResponseEntity<ExchangeRateEntity> findExchangeRatesByTime(
 			@PathVariable("base-currency") String baseCurrency, @RequestParam("datetime") String datetime)
 			throws ExRatesNotPresentForBaseCurrencyException, ExRatesNotPresentAtTimeException {
@@ -52,31 +58,40 @@ public class KafkaConsumerController {
 		ExchangeRateEntity exchangeRatesByTime = currencyExchangeService.getExchangeRatesByTime(baseCurrency, datetime);
 		return new ResponseEntity<ExchangeRateEntity>(exchangeRatesByTime, HttpStatus.OK);
 	}
-	
+
+	// or
+
+	@GetMapping(value = "/exchange-rates1/{base-currency}")
+	public ResponseEntity<ExchangeRateEntity> findExchangeRatesByTime1(
+			@PathVariable("base-currency") String baseCurrency,
+			@RequestParam("datetime") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) Instant instant)
+			throws ExRatesNotPresentForBaseCurrencyException, ExRatesNotPresentAtTimeException {
+		logger.debug("findExchangeRatesByTime baseCurrency :{}, datetime: {}", baseCurrency, instant);
+		ExchangeRateEntity exchangeRatesByTime = currencyExchangeService.getExchangeRatesByTime1(baseCurrency, instant);
+		return new ResponseEntity<ExchangeRateEntity>(exchangeRatesByTime, HttpStatus.OK);
+	}
+
 	@GetMapping(value = "/exchange-rates/{base-currency}/{currency}")
 	public ResponseEntity<ExchangeAmount> calculateCurrencyExchangeAmount(
-			@PathVariable("base-currency") String baseCurrency, @PathVariable("currency") String currency, 
+			@PathVariable("base-currency") String baseCurrency, @PathVariable("currency") String currency,
 			@RequestParam("base-currency-amount") BigDecimal baseCurrencyAmount)
 			throws ExRatesNotPresentForBaseCurrencyException, ExRatesNotPresentAtTimeException {
-		logger.debug("calculateCurrencyExchangeAmount baseCurrency :{}, currency: {}, baseCurrencyAmount:{} ", baseCurrency, currency, baseCurrencyAmount);
-		ExchangeAmount exchangeAmount = currencyExchangeService.getExchangeAmount(baseCurrency, currency, baseCurrencyAmount);
+		logger.debug("calculateCurrencyExchangeAmount baseCurrency :{}, currency: {}, baseCurrencyAmount:{} ",
+				baseCurrency, currency, baseCurrencyAmount);
+		ExchangeAmount exchangeAmount = currencyExchangeService.getExchangeAmount(baseCurrency, currency,
+				baseCurrencyAmount);
 		return new ResponseEntity<ExchangeAmount>(exchangeAmount, HttpStatus.OK);
 	}
-	
+
 	@GetMapping(value = "/exchange-rates/{base-currency}/report")
-	public ResponseEntity<Resource> downloadReport(
-			@PathVariable("base-currency") String baseCurrency)
+	public ResponseEntity<Resource> downloadReport(@PathVariable("base-currency") String baseCurrency)
 			throws ExRatesNotPresentForBaseCurrencyException, ExRatesNotPresentAtTimeException, IOException {
 		logger.debug("downloadReport baseCurrency :{}, ", baseCurrency);
 		String filename = "report.csv";
-	    InputStreamResource file = new InputStreamResource(currencyExchangeService.getDownloadReport(baseCurrency));
-	    
-	    return ResponseEntity.ok()
-	            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
-	            .contentType(MediaType.parseMediaType("application/csv"))
-	            .body(file);
-	   
+		InputStreamResource file = new InputStreamResource(currencyExchangeService.getDownloadReport(baseCurrency));
+
+		return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + filename)
+				.contentType(MediaType.parseMediaType("application/csv")).body(file);
 	}
-	
 
 }
